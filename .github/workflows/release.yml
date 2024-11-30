@@ -3,19 +3,23 @@ name: Release Automation
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
 
 jobs:
   release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
 
       - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '20'
+          node-version: "20"
 
       - name: Bump version
         run: |
@@ -23,12 +27,20 @@ jobs:
           npm version --no-git-tag-version $VERSION
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git fetch origin main
+          git checkout main
           git add package.json
           git commit -m "chore: bump version to $VERSION"
           git push origin main
 
+          git tag -f $VERSION
+          git push origin $VERSION -f
+
       - name: Create GitHub Release
         uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ github.ref_name }}
           release_name: Release ${{ github.ref_name }}
