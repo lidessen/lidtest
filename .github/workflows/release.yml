@@ -38,7 +38,7 @@ jobs:
           git push origin $VERSION -f
 
       - name: Create GitHub Release
-        uses: actions/create-release@v4
+        uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
