@@ -26,7 +26,6 @@ app.get(
       },
       async onMessage(event, ws) {
         let data: any = null;
-        console.log(event.data);
         if (typeof event.data === "string") {
           data = JSON.parse(event.data);
         } else if (event.data instanceof ArrayBuffer) {
