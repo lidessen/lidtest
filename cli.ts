@@ -8,6 +8,7 @@ import path from "path";
 import { nanoid } from "nanoid";
 import os from "os";
 import { TestStatus } from "./src/constants";
+import pc from "picocolors";
 
 const app = new Hono();
 
@@ -54,6 +55,7 @@ app.get(
         );
         try {
           await runTest({ page, expect });
+          console.log(pc.green(`✓ Test ${data.id} passed`));
           ws.send(
             JSON.stringify({
               type: "test_result",
@@ -62,7 +64,10 @@ app.get(
             })
           );
         } catch (error) {
-          console.error(error);
+          console.error(
+            pc.red(`✗ Test ${data.id} failed:`),
+            pc.red(String(error))
+          );
           ws.send(
             JSON.stringify({
               type: "test_result",
@@ -91,7 +96,7 @@ const server = serve(
     port,
   },
   (info) => {
-    console.log(`Server is running on port ${info.port}`);
+    console.log(pc.cyan(`🚀 Server is running on port ${pc.bold(info.port)}`));
   }
 );
 injectWebSocket(server);

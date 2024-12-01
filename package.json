@@ -23,21 +23,23 @@
   ],
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build && tsx esbuild.config.ts",
-    "build:cli": "tsx esbuild.config.ts"
+    "build": "tsc && vite build && tsx esbuild.config.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.1",
+    "@types/react": "^18.3.12",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
     "esbuild": "^0.24.0",
     "postcss": "^8.4.49",
+    "react": "^18.3.1",
     "tailwindcss": "^3.4.15",
     "tailwindcss-animate": "^1.0.7",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vite": "^6.0.1",
-    "vite-plugin-dts": "^4.3.0"
+    "vite-plugin-dts": "^4.3.0",
+    "vite-plugin-externalize-deps": "^0.8.0"
   },
   "dependencies": {
     "@hono/node-server": "^1.13.7",
@@ -49,9 +51,13 @@
     "hono": "^4.6.12",
     "lucide-react": "^0.462.0",
     "nanoid": "^5.0.9",
+    "picocolors": "^1.1.1",
     "playwright": "^1.49.0",
     "tailwind-merge": "^2.5.5",
     "zustand": "^5.0.1"
   },
-  "packageManager": "pnpm@9.14.4"
+  "peerDependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  }
 }
