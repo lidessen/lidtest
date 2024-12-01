@@ -45,7 +45,7 @@ jobs:
           prerelease: false
 
       - run: bun install
-      - run: bun build
+      - run: bun run build
       - run: npm publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
