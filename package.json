@@ -14,7 +14,7 @@
     "./style.css": "./dist/index.css"
   },
   "bin": {
-    "richest": "cli.ts"
+    "richest": "dist/cli.js"
   },
   "files": [
     "dist",
