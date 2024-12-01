@@ -23,7 +23,8 @@
   ],
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build"
+    "build": "tsc && vite build && tsx esbuild.config.ts",
+    "build:cli": "tsx esbuild.config.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.1",
