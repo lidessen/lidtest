@@ -10,7 +10,7 @@
     "./style.css": "./dist/index.css"
   },
   "bin": {
-    "richest": "./cli.ts"
+    "richest": "./dist/cli.js"
   },
   "files": [
     "dist",
@@ -19,12 +19,14 @@
   ],
   "scripts": {
     "dev": "vite",
-    "build": "vite build"
+    "build": "tsc && vite build && tsx esbuild.config.ts",
+    "build:cli": "tsx esbuild.config.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.1",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
+    "esbuild": "^0.24.0",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.15",
     "tailwindcss-animate": "^1.0.7",
