@@ -4,7 +4,7 @@
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "https://github.com/lidengke/richest.git"
+    "url": "https://github.com/lidessen/richest.git"
   },
   "exports": {
     ".": {
