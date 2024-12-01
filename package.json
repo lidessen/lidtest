@@ -2,6 +2,10 @@
   "name": "richest",
   "version": "0.0.1-alpha.6",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lidengke/richest.git"
+  },
   "exports": {
     ".": {
       "import": "./dist/index.js",
@@ -10,7 +14,7 @@
     "./style.css": "./dist/index.css"
   },
   "bin": {
-    "richest": "./dist/cli.js"
+    "richest": "cli.ts"
   },
   "files": [
     "dist",
@@ -19,8 +23,7 @@
   ],
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build && tsx esbuild.config.ts",
-    "build:cli": "tsx esbuild.config.ts"
+    "build": "tsc && vite build"
   },
   "devDependencies": {
     "@types/node": "^22.10.1",

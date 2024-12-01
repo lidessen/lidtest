@@ -1,3 +1,4 @@
+#!/usr/bin/env tsx
 import { createNodeWebSocket } from "@hono/node-ws";
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
