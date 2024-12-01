@@ -48,7 +48,7 @@ app.get(
         const fileName = nanoid();
         const tempDir = path.join(os.tmpdir(), "richest");
         fs.mkdirSync(tempDir, { recursive: true });
-        const tempFilePath = path.join(tempDir, `${fileName}.js`);
+        const tempFilePath = path.join(tempDir, `${fileName}.mjs`);
         fs.writeFileSync(tempFilePath, data.code);
         const runTest = await import(tempFilePath).then(
           (m) => m[data.func || "default"]
