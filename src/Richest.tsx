@@ -5,6 +5,8 @@ import {
   useMemo,
   useRef,
   useState,
+  useCallback,
+  useEffect,
 } from "react";
 import { createStore, useStore } from "zustand";
 import { nanoid } from "nanoid";
@@ -38,11 +40,16 @@ interface Test {
 
 interface TestState {
   ws: WebSocket | null;
+  tests: Array<{
+    id: string;
+    run: (ws: WebSocket) => Promise<void>;
+  }>;
 }
 
 const createTestStore = () =>
   createStore<TestState>(() => ({
     ws: null,
+    tests: [],
   }));
 
 const TestStoreContext = createContext<ReturnType<
@@ -83,6 +90,8 @@ export function Describe({
   const store = useMemo(() => createTestStore(), []);
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const reconnectTimeout = useRef<number>();
+  const ws = useRef<WebSocket>();
 
   const connectionStatus: ConnectionStatus = error
     ? "error"
@@ -90,12 +99,7 @@ export function Describe({
     ? "connected"
     : "disconnected";
 
-  const disconnect = useRef<() => void>(() => {});
-
-  const connect = () => {
-    setError(null);
-    disconnect.current();
-
+  const connect = useCallback(() => {
     if (!server) {
       store.setState({ ws: null });
       setConnected(false);
@@ -103,42 +107,80 @@ export function Describe({
     }
 
     try {
-      const ws = new WebSocket(server);
-      const onOpen = () => {
-        store.setState({ ws });
+      if (ws.current?.readyState === WebSocket.OPEN) {
+        ws.current.close();
+      }
+
+      const newWs = new WebSocket(server);
+      ws.current = newWs;
+
+      newWs.addEventListener("open", () => {
+        store.setState({ ws: newWs });
         setConnected(true);
         setError(null);
-      };
-      ws.addEventListener("open", onOpen);
+      });
 
-      const onError = () => {
+      newWs.addEventListener("error", () => {
         setError("Failed to connect to server");
         setConnected(false);
         store.setState({ ws: null });
-      };
-      ws.addEventListener("error", onError);
+        scheduleReconnect();
+      });
 
-      const onClose = () => {
+      newWs.addEventListener("close", () => {
         setConnected(false);
         store.setState({ ws: null });
-      };
-      ws.addEventListener("close", onClose);
-
-      disconnect.current = () => {
-        ws.removeEventListener("open", onOpen);
-        ws.removeEventListener("error", onError);
-        ws.removeEventListener("close", onClose);
-        ws.close();
-        store.setState({ ws: null });
-        setConnected(false);
-        setError(null);
-      };
+        scheduleReconnect();
+      });
     } catch (err: unknown) {
       setError(`Failed to create WebSocket connection: ${err}`);
       setConnected(false);
       store.setState({ ws: null });
+      scheduleReconnect();
     }
-  };
+  }, [server, store]);
+
+  const scheduleReconnect = useCallback(() => {
+    if (reconnectTimeout.current) {
+      clearTimeout(reconnectTimeout.current);
+    }
+    reconnectTimeout.current = window.setTimeout(() => {
+      connect();
+    }, 2000);
+  }, [connect]);
+
+  useEffect(() => {
+    connect();
+    return () => {
+      if (reconnectTimeout.current) {
+        clearTimeout(reconnectTimeout.current);
+      }
+      if (ws.current) {
+        ws.current.close();
+      }
+    };
+  }, [connect]);
+
+  const [isRunning, setIsRunning] = useState(false);
+
+  const runAll = useCallback(async () => {
+    setIsRunning(true);
+    const tests = store.getState().tests;
+
+    try {
+      for (const test of tests) {
+        await test.run(ws.current!);
+      }
+    } catch (error) {
+      console.error("Test execution failed:", error);
+    } finally {
+      setIsRunning(false);
+    }
+  }, [store]);
+
+  const stopAll = useCallback(() => {
+    setIsRunning(false);
+  }, []);
 
   return (
     <TestStoreContext.Provider value={store}>
@@ -159,18 +201,12 @@ export function Describe({
                   {error.length > 50 ? `${error.slice(0, 50)}...` : error}
                 </Badge>
               )}
-              {connected ? (
-                <Button
-                  variant="secondary"
-                  onClick={() => disconnect.current()}
-                >
-                  Disconnect
-                </Button>
-              ) : (
-                <Button variant="default" onClick={connect}>
-                  Connect
-                </Button>
-              )}
+              <Button
+                variant={isRunning ? "secondary" : "default"}
+                onClick={isRunning ? stopAll : runAll}
+              >
+                {isRunning ? "Stop" : "Run All"}
+              </Button>
             </div>
           </CardTitle>
         </CardHeader>
@@ -248,6 +284,8 @@ function TestStatusIndicator({
 export function Test({ title, code, func }: TestProps) {
   const id = useMemo(() => nanoid(), []);
   const { status, error, run } = useTest({ id, title, code, func });
+  const store = useContext(TestStoreContext)!;
+  const ws = useStore(store, (state) => state.ws);
 
   return (
     <div className="flex items-center justify-between p-2 rounded-lg border">
@@ -262,7 +300,7 @@ export function Test({ title, code, func }: TestProps) {
         <Button
           variant="outline"
           size="sm"
-          onClick={run}
+          onClick={() => ws && run(ws)}
           disabled={status === TestStatus.Running}
           className="flex items-center gap-1.5"
         >
@@ -285,53 +323,71 @@ export function Test({ title, code, func }: TestProps) {
 
 function useTest(test: Test) {
   const store = useContext(TestStoreContext)!;
-  const ws = useStore(store, (state) => state.ws);
+
   const [status, setStatus] = useState<TestStatus>(TestStatus.NotStarted);
   const [error, setError] = useState<string | null>(null);
 
-  function run() {
-    if (!ws) {
-      setError("WebSocket not connected");
-      return;
-    }
+  function runTest(ws: WebSocket) {
+    return new Promise<void>((resolve, reject) => {
+      if (!ws) {
+        setError("WebSocket not connected");
+        reject(new Error("WebSocket not connected"));
+        return;
+      }
 
-    setError(null);
-    setStatus(TestStatus.Running);
+      setError(null);
+      setStatus(TestStatus.Running);
 
-    try {
-      ws.send(JSON.stringify(test));
+      try {
+        ws.send(JSON.stringify(test));
 
-      const handleMessage = (event: MessageEvent) => {
-        try {
-          const data = JSON.parse(event.data);
-          if (data.type === "test_result" && data.testId === test.id) {
-            setStatus(data.status);
-            if (data.status === TestStatus.Failed) {
-              setError(data.error);
+        const handleMessage = (event: MessageEvent) => {
+          try {
+            const data = JSON.parse(event.data);
+            if (data.type === "test_result" && data.testId === test.id) {
+              setStatus(data.status);
+              if (data.status === TestStatus.Failed) {
+                setError(data.error);
+                reject(new Error(data.error));
+              } else {
+                resolve();
+              }
+              ws.removeEventListener("message", handleMessage);
             }
+          } catch (err: unknown) {
+            const error = `Failed to parse server response: ${err}`;
+            setError(error);
+            setStatus(TestStatus.Failed);
+            reject(new Error(error));
             ws.removeEventListener("message", handleMessage);
           }
-        } catch (err: unknown) {
-          setError(`Failed to parse server response: ${err}`);
-          setStatus(TestStatus.Failed);
-          ws.removeEventListener("message", handleMessage);
-        }
-      };
+        };
 
-      ws.addEventListener("message", handleMessage);
-
-      return () => {
-        ws.removeEventListener("message", handleMessage);
-      };
-    } catch (err: unknown) {
-      setError(`Failed to send test: ${err}`);
-      setStatus(TestStatus.Failed);
-    }
+        ws.addEventListener("message", handleMessage);
+      } catch (err: unknown) {
+        const error = `Failed to send test: ${err}`;
+        setError(error);
+        setStatus(TestStatus.Failed);
+        reject(new Error(error));
+      }
+    });
   }
+
+  useEffect(() => {
+    store.setState((state) => ({
+      tests: [...state.tests, { id: test.id, run: runTest }],
+    }));
+
+    return () => {
+      store.setState((state) => ({
+        tests: state.tests.filter((t) => t.id !== test.id),
+      }));
+    };
+  }, [test.id, store]);
 
   return {
     status,
     error,
-    run,
+    run: runTest,
   };
 }
