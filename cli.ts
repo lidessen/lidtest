@@ -1,7 +1,7 @@
 import { createNodeWebSocket } from "@hono/node-ws";
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
-import { Browser, chromium } from "playwright";
+import { Browser, chromium, Page } from "playwright";
 import { expect } from "@playwright/test";
 import fs from "fs";
 import path from "path";
@@ -9,6 +9,7 @@ import { nanoid } from "nanoid";
 import os from "os";
 import { TestStatus } from "./src/constants";
 import pc from "picocolors";
+import { WSContext } from "hono/ws";
 
 const app = new Hono();
 
@@ -19,11 +20,25 @@ app.get("/", (c) => c.text("Pong!"));
 app.get(
   "/run",
   upgradeWebSocket(async () => {
-    let browser: Browser | null = null;
+    const store = new WeakMap<
+      WSContext<unknown>,
+      {
+        browser: Browser | null;
+        page: Page | null;
+        pages: {
+          [key: string]: Page;
+        };
+      }
+    >();
 
     return {
       async onOpen(_, ws) {
         ws.send(JSON.stringify({ message: "Hello from server!" }));
+        store.set(ws, {
+          browser: null,
+          page: null,
+          pages: {},
+        });
       },
       async onMessage(event, ws) {
         let data: any = null;
@@ -37,13 +52,22 @@ app.get(
           throw new Error("Invalid event data");
         }
 
-        if (!browser) {
-          browser = await chromium.launch({
+        const context = store.get(ws)!;
+
+        if (!context) {
+          throw new Error("No context found");
+        }
+
+        if (!context.browser) {
+          context.browser = await chromium.launch({
             headless: false,
           });
         }
 
-        const page = await browser.newPage();
+        if (!context.page) {
+          context.page = await context.browser.newPage();
+          context.pages.default = context.page;
+        }
 
         const fileName = nanoid();
         const tempDir = path.join(os.tmpdir(), "richest");
@@ -54,7 +78,7 @@ app.get(
           (m) => m[data.func || "default"]
         );
         try {
-          await runTest({ page, expect });
+          await runTest({ ...context, expect });
           console.log(pc.green(`✓ Test ${data.id} passed`));
           ws.send(
             JSON.stringify({
@@ -77,12 +101,12 @@ app.get(
             })
           );
         } finally {
-          await page.close();
           fs.unlinkSync(tempFilePath);
         }
       },
-      onClose: () => {
-        browser?.close();
+      onClose: (_, ws) => {
+        const context = store.get(ws)!;
+        context.browser?.close();
       },
     };
   })
